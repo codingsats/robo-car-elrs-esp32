@@ -214,20 +214,58 @@ kThrottleDeadband
 
 ---
 
-## Build & Upload
+## Build & Upload (PlatformIO)
 
 ### Requirements
 
-* Arduino IDE
-* ESP32 board package installed
+* VS Code
+* PlatformIO extension
+* USB driver for ESP32 board
 
-### Steps
+### Build Profiles
 
-1. Open project folder
-2. Select board:
-   `ESP32 Dev Module`
-3. Select correct COM port
-4. Upload
+This project provides two PlatformIO environments:
+
+* `esp32dev` (debug): enables debug logging with `DEBUG_MODE`
+* `esp32dev_release` (release): strips debug logging for production firmware
+
+### Build Locally (Debug)
+
+From the project root:
+
+```bash
+pio run -e esp32dev
+```
+
+### Upload (Debug)
+
+```bash
+pio run -e esp32dev -t upload
+```
+
+### Serial Monitor (Debug)
+
+```bash
+pio device monitor -e esp32dev
+```
+
+### Build Locally (Release)
+
+```bash
+pio run -e esp32dev_release
+```
+
+### Upload (Release)
+
+```bash
+pio run -e esp32dev_release -t upload
+```
+
+### Notes
+
+* `monitor_speed` is configured to `115200` in `platformio.ini`
+* Default environment is `esp32dev` for easier development
+* Use `esp32dev_release` when preparing firmware for normal driving/production
 
 ---
 

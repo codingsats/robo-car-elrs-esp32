@@ -5,6 +5,7 @@
 #include "Config.h"
 #include "Pins.h"
 #include "Types.h"
+#include "Debug.h"
 #include <ESP32Servo.h>
 
 CarMovement car;
@@ -206,7 +207,7 @@ void updateParkingBuzzer(uint32_t now, bool proximityAssistOn) {
 
 void setup() {
   // Start USB serial for debugging.
-  Serial.begin(115200);
+  DBG_INIT(115200);
 
   // Configure buzzer pin.
   pinMode(Pins::kBuzzer, OUTPUT);
@@ -241,15 +242,15 @@ void setup() {
   gPanServo.setPeriodHertz(50);
   const int servoChannel = gPanServo.attach(Pins::kServoPan, 500, 2400);
   if (servoChannel < 0) {
-    Serial.println("ERROR: servo attach failed");
+    DBG_PRINTLN("ERROR: servo attach failed");
   } else {
-    Serial.print("Servo attached on PWM channel ");
-    Serial.println(servoChannel);
+    DBG_PRINT("Servo attached on PWM channel ");
+    DBG_PRINTLN(servoChannel);
   }
   resetProximityScanner();
 
-  Serial.println("ELRS car control started");
-  Serial.println("Initial state: DISARMED");
+  DBG_PRINTLN("ELRS car control started");
+  DBG_PRINTLN("Initial state: DISARMED");
 }
 
 void loop() {
@@ -273,9 +274,9 @@ void loop() {
       gWasArmed = driveCommand.armed;
 
       if (gWasArmed) {
-        Serial.println("ARMED");
+        DBG_PRINTLN("ARMED");
       } else {
-        Serial.println("DISARMED");
+        DBG_PRINTLN("DISARMED");
       }
 
       playArmStateTone(gWasArmed);
@@ -294,10 +295,10 @@ void loop() {
       gWasProximityAssistOn = driveCommand.proximityAssistOn;
 
       if (gWasProximityAssistOn) {
-        Serial.println("PROXIMITY SCAN ON");
+        DBG_PRINTLN("PROXIMITY SCAN ON");
         resetProximityScanner();
       } else {
-        Serial.println("PROXIMITY SCAN OFF");
+        DBG_PRINTLN("PROXIMITY SCAN OFF");
         resetProximityScanner();
         stopBuzzerTone();
       }
@@ -320,50 +321,50 @@ void loop() {
       if (now - lastDebugPrintMs >= Config::kDebugPrintIntervalMs) {
         lastDebugPrintMs = now;
 
-        Serial.print("CH1=");
-        Serial.print(rcData.channels[Config::kSteeringChannelIndex]);
+        DBG_PRINT("CH1=");
+        DBG_PRINT(rcData.channels[Config::kSteeringChannelIndex]);
 
-        Serial.print("  CH2=");
-        Serial.print(rcData.channels[Config::kThrottleChannelIndex]);
+        DBG_PRINT("  CH2=");
+        DBG_PRINT(rcData.channels[Config::kThrottleChannelIndex]);
 
-        Serial.print("  CH5=");
-        Serial.print(rcData.channels[Config::kArmChannelIndex]);
+        DBG_PRINT("  CH5=");
+        DBG_PRINT(rcData.channels[Config::kArmChannelIndex]);
 
-        Serial.print("  CH8=");
-        Serial.print(rcData.channels[Config::kLightsChannelIndex]);
+        DBG_PRINT("  CH8=");
+        DBG_PRINT(rcData.channels[Config::kLightsChannelIndex]);
 
-        Serial.print("  CH6=");
-        Serial.print(rcData.channels[Config::kProximityAssistChannelIndex]);
+        DBG_PRINT("  CH6=");
+        DBG_PRINT(rcData.channels[Config::kProximityAssistChannelIndex]);
 
-        Serial.print("  armed=");
-        Serial.print(driveCommand.armed ? "YES" : "NO");
+        DBG_PRINT("  armed=");
+        DBG_PRINT(driveCommand.armed ? "YES" : "NO");
 
-        Serial.print("  lights=");
-        Serial.print(driveCommand.lightsOn ? "ON" : "OFF");
+        DBG_PRINT("  lights=");
+        DBG_PRINT(driveCommand.lightsOn ? "ON" : "OFF");
 
-        Serial.print("  prox=");
-        Serial.print(driveCommand.proximityAssistOn ? "ON" : "OFF");
+        DBG_PRINT("  prox=");
+        DBG_PRINT(driveCommand.proximityAssistOn ? "ON" : "OFF");
 
-        Serial.print("  scanAngle=");
-        Serial.print(gCurrentScanAngle);
+        DBG_PRINT("  scanAngle=");
+        DBG_PRINT(gCurrentScanAngle);
 
-        Serial.print("  distCm=");
-        Serial.print(gLastDistanceCm);
+        DBG_PRINT("  distCm=");
+        DBG_PRINT(gLastDistanceCm);
 
-        Serial.print("  nearestCm=");
-        Serial.print(gNearestDistanceCm);
+        DBG_PRINT("  nearestCm=");
+        DBG_PRINT(gNearestDistanceCm);
 
-        Serial.print("  steering=");
-        Serial.print(driveCommand.steering);
+        DBG_PRINT("  steering=");
+        DBG_PRINT(driveCommand.steering);
 
-        Serial.print("  throttle=");
-        Serial.print(driveCommand.throttle);
+        DBG_PRINT("  throttle=");
+        DBG_PRINT(driveCommand.throttle);
 
-        Serial.print("  left=");
-        Serial.print(motorCommand.left);
+        DBG_PRINT("  left=");
+        DBG_PRINT(motorCommand.left);
 
-        Serial.print("  right=");
-        Serial.println(motorCommand.right);
+        DBG_PRINT("  right=");
+        DBG_PRINTLN(motorCommand.right);
       }
     }
   }
@@ -390,7 +391,7 @@ void loop() {
 
     if (gWasArmed) {
       gWasArmed = false;
-      Serial.println("FAILSAFE -> DISARMED");
+      DBG_PRINTLN("FAILSAFE -> DISARMED");
       playArmStateTone(false);
     }
 
@@ -398,20 +399,20 @@ void loop() {
       gWereLightsOn = false;
       digitalWrite(Pins::kLeftLed, LOW);
       digitalWrite(Pins::kRightLed, LOW);
-      Serial.println("FAILSAFE -> LIGHTS OFF");
+      DBG_PRINTLN("FAILSAFE -> LIGHTS OFF");
     }
 
     if (gWasProximityAssistOn) {
       gWasProximityAssistOn = false;
       resetProximityScanner();
       stopBuzzerTone();
-      Serial.println("FAILSAFE -> PROXIMITY SCAN OFF");
+      DBG_PRINTLN("FAILSAFE -> PROXIMITY SCAN OFF");
     }
 
     static uint32_t lastFailsafePrintMs = 0;
     if (now - lastFailsafePrintMs >= 1000) {
       lastFailsafePrintMs = now;
-      Serial.println("Failsafe: no recent CRSF frames");
+      DBG_PRINTLN("Failsafe: no recent CRSF frames");
     }
   }
 }
