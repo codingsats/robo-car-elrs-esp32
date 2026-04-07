@@ -18,6 +18,13 @@ bool gWereLightsOn = false;
 // Servo object for the ultrasonic pan mechanism.
 Servo gPanServo;
 
+// Dedicated LEDC channel for buzzer to avoid conflicts with servo PWM channels.
+constexpr uint8_t kBuzzerPwmChannel = 7;
+constexpr uint8_t kBuzzerPwmResolutionBits = 8;
+
+// Non-blocking buzzer stop time. 0 means no timed stop is pending.
+uint32_t gBuzzerOffAtMs = 0;
+
 // Tracks the current proximity assist state.
 bool gWasProximityAssistOn = false;
 
@@ -42,13 +49,34 @@ uint32_t gLastUltrasonicMeasureMs = 0;
 uint32_t gLastParkingBeepMs = 0;
 
 // Plays a short buzzer sound to indicate arm/disarm state.
+void startBuzzerTone(uint16_t frequencyHz, uint32_t durationMs = 0) {
+  ledcWriteTone(kBuzzerPwmChannel, frequencyHz);
+
+  if (durationMs > 0) {
+    gBuzzerOffAtMs = millis() + durationMs;
+  } else {
+    gBuzzerOffAtMs = 0;
+  }
+}
+
+void stopBuzzerTone() {
+  ledcWriteTone(kBuzzerPwmChannel, 0);
+  gBuzzerOffAtMs = 0;
+}
+
+void updateTimedBuzzer(uint32_t now) {
+  if (gBuzzerOffAtMs > 0 && static_cast<int32_t>(now - gBuzzerOffAtMs) >= 0) {
+    stopBuzzerTone();
+  }
+}
+
 void playArmStateTone(bool armed) {
   if (armed) {
     // Short, higher tone when arming.
-    tone(Pins::kBuzzer, Config::kBuzzerArmToneHz, Config::kBuzzerArmDurationMs);
+    startBuzzerTone(Config::kBuzzerArmToneHz, Config::kBuzzerArmDurationMs);
   } else {
     // Longer, lower tone when disarming.
-    tone(Pins::kBuzzer, Config::kBuzzerDisarmToneHz, Config::kBuzzerDisarmDurationMs);
+    startBuzzerTone(Config::kBuzzerDisarmToneHz, Config::kBuzzerDisarmDurationMs);
   }
 }
 
@@ -144,19 +172,19 @@ void updateProximityScanner(uint32_t now) {
 void updateParkingBuzzer(uint32_t now, bool proximityAssistOn) {
   // If scan mode is not active, keep buzzer silent.
   if (!proximityAssistOn) {
-    noTone(Pins::kBuzzer);
+    stopBuzzerTone();
     return;
   }
 
   // No valid obstacle reading yet or obstacle is out of warning range.
   if (gNearestDistanceCm < 0 || gNearestDistanceCm > Config::kParkingWarnDistanceCm) {
-    noTone(Pins::kBuzzer);
+    stopBuzzerTone();
     return;
   }
 
   // Very near obstacle -> continuous warning.
   if (gNearestDistanceCm <= Config::kParkingContinuousDistanceCm) {
-    tone(Pins::kBuzzer, Config::kParkingBuzzerFrequencyHz);
+    startBuzzerTone(Config::kParkingBuzzerFrequencyHz);
     return;
   }
 
@@ -172,11 +200,7 @@ void updateParkingBuzzer(uint32_t now, bool proximityAssistOn) {
 
   if (now - gLastParkingBeepMs >= intervalMs) {
     gLastParkingBeepMs = now;
-    tone(
-      Pins::kBuzzer,
-      Config::kParkingBuzzerFrequencyHz,
-      Config::kParkingBeepDurationMs
-    );
+    startBuzzerTone(Config::kParkingBuzzerFrequencyHz, Config::kParkingBeepDurationMs);
   }
 }
 
@@ -186,7 +210,9 @@ void setup() {
 
   // Configure buzzer pin.
   pinMode(Pins::kBuzzer, OUTPUT);
-  noTone(Pins::kBuzzer);
+  ledcSetup(kBuzzerPwmChannel, 2000, kBuzzerPwmResolutionBits);
+  ledcAttachPin(Pins::kBuzzer, kBuzzerPwmChannel);
+  stopBuzzerTone();
 
   // Configure front LED pins and force them off at boot.
   pinMode(Pins::kLeftLed, OUTPUT);
@@ -212,7 +238,14 @@ void setup() {
   digitalWrite(Pins::kUltrasonicTrig, LOW);
 
   // Attach servo used to pan the ultrasonic sensor.
-  gPanServo.attach(Pins::kServoPan);
+  gPanServo.setPeriodHertz(50);
+  const int servoChannel = gPanServo.attach(Pins::kServoPan, 500, 2400);
+  if (servoChannel < 0) {
+    Serial.println("ERROR: servo attach failed");
+  } else {
+    Serial.print("Servo attached on PWM channel ");
+    Serial.println(servoChannel);
+  }
   resetProximityScanner();
 
   Serial.println("ELRS car control started");
@@ -266,20 +299,9 @@ void loop() {
       } else {
         Serial.println("PROXIMITY SCAN OFF");
         resetProximityScanner();
-        noTone(Pins::kBuzzer);
+        stopBuzzerTone();
       }
     }
-
-        // Update servo scan and parking-sensor buzzer behavior when enabled.
-    if (driveCommand.proximityAssistOn) {
-      updateProximityScanner(now);
-    } else {
-      // Keep servo centered when scan mode is disabled.
-      gNearestDistanceCm = Config::kUltrasonicInvalidDistanceCm;
-      gLastDistanceCm = Config::kUltrasonicInvalidDistanceCm;
-    }
-
-    updateParkingBuzzer(now, driveCommand.proximityAssistOn);
 
     // Only recompute and send motor commands at a limited rate.
     static uint32_t lastMotorUpdateMs = 0;
@@ -346,9 +368,24 @@ void loop() {
     }
   }
 
+  const bool linkAlive = rcInput.isLinkAlive();
+
+  // Keep servo scan and parking buzzer running continuously while assist mode is active.
+  // This avoids scan pauses when no fresh RC frame was parsed in a given loop cycle.
+  if (gWasProximityAssistOn && linkAlive) {
+    updateProximityScanner(now);
+  } else {
+    gNearestDistanceCm = Config::kUltrasonicInvalidDistanceCm;
+    gLastDistanceCm = Config::kUltrasonicInvalidDistanceCm;
+  }
+
+  updateParkingBuzzer(now, gWasProximityAssistOn && linkAlive);
+
   // Failsafe:
   // if no valid frame has arrived recently, stop the car.
-  if (!rcInput.isLinkAlive()) {
+  updateTimedBuzzer(now);
+
+  if (!linkAlive) {
     car.stop();
 
     if (gWasArmed) {
@@ -367,7 +404,7 @@ void loop() {
     if (gWasProximityAssistOn) {
       gWasProximityAssistOn = false;
       resetProximityScanner();
-      noTone(Pins::kBuzzer);
+      stopBuzzerTone();
       Serial.println("FAILSAFE -> PROXIMITY SCAN OFF");
     }
 
