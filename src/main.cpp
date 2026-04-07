@@ -49,6 +49,12 @@ uint32_t gLastUltrasonicMeasureMs = 0;
 // Timing for non-blocking buzzer beeps.
 uint32_t gLastParkingBeepMs = 0;
 
+// Tracks whether parking-alert logic currently owns buzzer output.
+bool gParkingBuzzerActive = false;
+
+// Tracks whether parking mode is currently in continuous-tone state.
+bool gParkingContinuousTone = false;
+
 // Plays a short buzzer sound to indicate arm/disarm state.
 void startBuzzerTone(uint16_t frequencyHz, uint32_t durationMs = 0) {
   ledcWriteTone(kBuzzerPwmChannel, frequencyHz);
@@ -85,6 +91,16 @@ int measureDistanceCm();
 void resetProximityScanner();
 void updateProximityScanner(uint32_t now);
 void updateParkingBuzzer(uint32_t now, bool proximityAssistOn);
+void releaseParkingBuzzer();
+
+void releaseParkingBuzzer() {
+  if (gParkingBuzzerActive) {
+    stopBuzzerTone();
+  }
+
+  gParkingBuzzerActive = false;
+  gParkingContinuousTone = false;
+}
 
 // Measures one ultrasonic distance sample in centimeters.
 // Returns -1 if the reading is invalid or timed out.
@@ -171,23 +187,31 @@ void updateProximityScanner(uint32_t now) {
 
 // Generates a parking-sensor-style buzzer pattern based on nearest obstacle distance.
 void updateParkingBuzzer(uint32_t now, bool proximityAssistOn) {
-  // If scan mode is not active, keep buzzer silent.
+  // If scan mode is not active, do not interfere with arm/disarm tones.
+  // Parking tone output is released by the caller when mode turns off.
   if (!proximityAssistOn) {
-    stopBuzzerTone();
     return;
   }
 
   // No valid obstacle reading yet or obstacle is out of warning range.
   if (gNearestDistanceCm < 0 || gNearestDistanceCm > Config::kParkingWarnDistanceCm) {
-    stopBuzzerTone();
+    releaseParkingBuzzer();
     return;
   }
 
   // Very near obstacle -> continuous warning.
   if (gNearestDistanceCm <= Config::kParkingContinuousDistanceCm) {
-    startBuzzerTone(Config::kParkingBuzzerFrequencyHz);
+    if (!gParkingContinuousTone) {
+      startBuzzerTone(Config::kParkingBuzzerFrequencyHz);
+    }
+
+    gParkingBuzzerActive = true;
+    gParkingContinuousTone = true;
     return;
   }
+
+  // Leave continuous mode when obstacle is no longer in nearest range.
+  gParkingContinuousTone = false;
 
   uint32_t intervalMs = Config::kParkingSlowBeepIntervalMs;
 
@@ -202,6 +226,7 @@ void updateParkingBuzzer(uint32_t now, bool proximityAssistOn) {
   if (now - gLastParkingBeepMs >= intervalMs) {
     gLastParkingBeepMs = now;
     startBuzzerTone(Config::kParkingBuzzerFrequencyHz, Config::kParkingBeepDurationMs);
+    gParkingBuzzerActive = true;
   }
 }
 
@@ -300,7 +325,7 @@ void loop() {
       } else {
         DBG_PRINTLN("PROXIMITY SCAN OFF");
         resetProximityScanner();
-        stopBuzzerTone();
+        releaseParkingBuzzer();
       }
     }
 
@@ -378,6 +403,7 @@ void loop() {
   } else {
     gNearestDistanceCm = Config::kUltrasonicInvalidDistanceCm;
     gLastDistanceCm = Config::kUltrasonicInvalidDistanceCm;
+    releaseParkingBuzzer();
   }
 
   updateParkingBuzzer(now, gWasProximityAssistOn && linkAlive);
@@ -405,7 +431,7 @@ void loop() {
     if (gWasProximityAssistOn) {
       gWasProximityAssistOn = false;
       resetProximityScanner();
-      stopBuzzerTone();
+      releaseParkingBuzzer();
       DBG_PRINTLN("FAILSAFE -> PROXIMITY SCAN OFF");
     }
 
