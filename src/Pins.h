@@ -19,8 +19,8 @@ namespace Pins {
   // ---------------------------------------------------------------------------
 
   // Battery divider midpoint -> ESP32 ADC input.
-  // Note: GPIO27 is ADC2 on classic ESP32.
-  constexpr uint8_t kBatteryAdc = 27;
+  // Note: GPIO34 is ADC1 on classic ESP32.
+  constexpr uint8_t kBatteryAdc = 34;
 
   // ---------------------------------------------------------------------------
   // LEDs

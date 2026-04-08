@@ -128,7 +128,7 @@ namespace Config {
   //   1. Measure real battery voltage with a multimeter.
   //   2. Compare with computed voltage.
   //   3. Adjust this factor until values match.
-  constexpr float kBatteryCalibrationFactor = 0.869f;
+  constexpr float kBatteryCalibrationFactor = 1.00f;
 
   // Battery thresholds for 2S Li-ion pack.
   //
