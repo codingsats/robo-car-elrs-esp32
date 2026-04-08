@@ -9,8 +9,8 @@ RcInput::RcInput() {
 void RcInput::begin() {
   // Start CRSF receive on Serial1.
   // RX pin = GPIO26
-  // TX pin = -1 because we do not transmit anything to the receiver.
-  Serial1.begin(Config::kCrsfBaud, SERIAL_8N1, Pins::kRcRx, -1);
+  // TX pin = GPIO27
+  Serial1.begin(Config::kCrsfBaud, SERIAL_8N1, Pins::kRcRx, Pins::kRcTx);
 }
 
 bool RcInput::update() {

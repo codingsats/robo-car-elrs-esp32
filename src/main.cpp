@@ -8,6 +8,7 @@
 #include "Debug.h"
 #include <ESP32Servo.h>
 #include "BatteryManager.h"
+#include "CrsfTelemetry.h"
 
 CarMovement car;
 RcInput rcInput;
@@ -57,6 +58,7 @@ bool gParkingBuzzerActive = false;
 bool gParkingContinuousTone = false;
 
 BatteryManager batteryManager;
+CrsfTelemetry crsfTelemetry(Serial1);
 
 // Plays a short buzzer sound to indicate arm/disarm state.
 void startBuzzerTone(uint16_t frequencyHz, uint32_t durationMs = 0) {
@@ -290,6 +292,7 @@ void loop() {
   
   // Update battery manager to get voltage readings.
   batteryManager.update(now);
+  crsfTelemetry.update(now, batteryManager);
 
   // Always poll the RC input parser.
   // This keeps CRSF frame handling responsive.

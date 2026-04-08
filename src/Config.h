@@ -200,6 +200,25 @@ namespace Config {
   constexpr uint32_t kParkingMediumBeepIntervalMs = 350;
   constexpr uint32_t kParkingFastBeepIntervalMs = 150;
   constexpr uint32_t kParkingBeepDurationMs = 60;
+
+  // ---------------------------------------------------------------------------
+  // CRSF telemetry
+  // ---------------------------------------------------------------------------
+  //
+  // Telemetry is sent back to the ELRS receiver over the same CRSF UART.
+  // We start with the standard CRSF battery sensor frame only.
+  //
+  // Battery telemetry payload fields:
+  // - voltage in 0.01V units
+  // - current in 0.01A units
+  // - capacity in mAh (24-bit)
+  // - remaining percentage
+  //
+  // At the moment we only measure pack voltage.
+  // Current and consumed capacity are not available yet, so they are sent as 0.
+
+  // How often battery telemetry is sent back over CRSF.
+  constexpr uint32_t kCrsfBatteryTelemetryIntervalMs = 500;
 }
 
 #endif

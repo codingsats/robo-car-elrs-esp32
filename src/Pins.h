@@ -12,7 +12,7 @@ namespace Pins {
   constexpr uint8_t kRcRx = 26;
 
   // Not used right now.
-  constexpr int8_t kRcTx = -1;
+  constexpr int8_t kRcTx = 27;
 
   // ---------------------------------------------------------------------------
   // Battery monitor
