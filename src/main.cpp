@@ -7,6 +7,7 @@
 #include "Types.h"
 #include "Debug.h"
 #include <ESP32Servo.h>
+#include "BatteryManager.h"
 
 CarMovement car;
 RcInput rcInput;
@@ -54,6 +55,8 @@ bool gParkingBuzzerActive = false;
 
 // Tracks whether parking mode is currently in continuous-tone state.
 bool gParkingContinuousTone = false;
+
+BatteryManager batteryManager;
 
 // Plays a short buzzer sound to indicate arm/disarm state.
 void startBuzzerTone(uint16_t frequencyHz, uint32_t durationMs = 0) {
@@ -234,6 +237,9 @@ void setup() {
   // Start USB serial for debugging.
   DBG_INIT(115200);
 
+  // Initialize battery manager to set up ADC and precompute scale factors.
+  batteryManager.begin();
+
   // Configure buzzer pin.
   pinMode(Pins::kBuzzer, OUTPUT);
   ledcSetup(kBuzzerPwmChannel, 2000, kBuzzerPwmResolutionBits);
@@ -281,6 +287,9 @@ void setup() {
 void loop() {
   // Capture current time once per loop for consistent timing checks.
   const uint32_t now = millis();
+  
+  // Update battery manager to get voltage readings.
+  batteryManager.update(now);
 
   // Always poll the RC input parser.
   // This keeps CRSF frame handling responsive.
@@ -390,6 +399,18 @@ void loop() {
 
         DBG_PRINT("  right=");
         DBG_PRINTLN(motorCommand.right);
+
+        DBG_PRINT("  vbat=");
+        DBG_PRINT(batteryManager.getPackVoltage(), 2);
+
+        DBG_PRINT("  battRaw=");
+        DBG_PRINT(batteryManager.getRawAdcAverage());
+
+        DBG_PRINT("  battLow=");
+        DBG_PRINT(batteryManager.isLow() ? "YES" : "NO");
+
+        DBG_PRINT("  battCrit=");
+        DBG_PRINT(batteryManager.isCritical() ? "YES" : "NO");
       }
     }
   }

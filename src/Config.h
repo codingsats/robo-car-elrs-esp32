@@ -70,6 +70,80 @@ namespace Config {
   // Future sensor / actuator defaults
   // ---------------------------------------------------------------------------
 
+  // ---------------------------------------------------------------------------
+  // Battery monitoring
+  // ---------------------------------------------------------------------------
+  //
+  // The battery is a 2S Li-ion pack (2x 18650).
+  // Voltage is measured via a resistive divider connected to an ESP32 ADC pin.
+  //
+  // Divider design:
+  //   Battery+ --- R1 --- ADC_PIN --- R2 --- GND
+  //
+  // Desired resistor values:
+  //   R1 = 100k
+  //   R2 = 47k
+  //
+  // Measured real values (used for calculations):
+  //   R1 = 98.4k
+  //   R2 = 46.4k
+  //
+  // NOTE:
+  // Always use the measured values for best accuracy.
+
+  // Top resistor (battery+ to ADC node) in ohms.
+  constexpr float kBatteryDividerR1Ohms = 98400.0f;
+
+  // Bottom resistor (ADC node to GND) in ohms.
+  constexpr float kBatteryDividerR2Ohms = 46400.0f;
+
+  // ADC configuration.
+  //
+  // ESP32 ADC is 12-bit (0..4095).
+  // We use attenuation so that input up to ~3.3V can be measured.
+  constexpr uint8_t kBatteryAdcResolutionBits = 12;
+  constexpr uint16_t kBatteryAdcMaxRaw = 4095;
+
+  // Sampling behavior.
+  //
+  // Battery voltage changes slowly, so we sample at a low rate and average
+  // multiple readings to reduce noise from motors and PWM activity.
+  constexpr uint32_t kBatterySampleIntervalMs = 100;
+  constexpr uint8_t kBatterySamplesPerUpdate = 16;
+
+  // Low-pass filter coefficient.
+  //
+  // filtered = filtered + alpha * (new - filtered)
+  //
+  // Smaller value = smoother but slower response.
+  constexpr float kBatteryFilterAlpha = 0.10f;
+
+  // Calibration factor.
+  //
+  // Used to compensate for:
+  // - ESP32 ADC inaccuracies
+  // - resistor tolerances
+  //
+  // Procedure:
+  //   1. Measure real battery voltage with a multimeter.
+  //   2. Compare with computed voltage.
+  //   3. Adjust this factor until values match.
+  constexpr float kBatteryCalibrationFactor = 0.869f;
+
+  // Battery thresholds for 2S Li-ion pack.
+  //
+  // These are approximate values under light load.
+  // Under motor load, voltage will sag temporarily.
+  constexpr float kBatteryLowVoltage = 7.00f;
+  constexpr float kBatteryCriticalVoltage = 6.60f;
+
+  // Hysteresis to avoid rapid toggling around thresholds.
+  constexpr float kBatteryStateHysteresis = 0.15f;
+
+  // ---------------------------------------------------------------------------
+  // End of Battery monitoring
+  // ---------------------------------------------------------------------------
+
   // Servo defaults
   constexpr int kServoMinAngle = 0;
   constexpr int kServoCenterAngle = 90;
